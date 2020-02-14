@@ -12,6 +12,8 @@ from explanations.types import CompilationResult
 COMPILE_CONFIG = "config.ini"
 PDF_MESSAGE_PREFIX = b"Generated PDF: "
 PDF_MESSAGE_SUFFIX = b"<end of PDF name>"
+POSTSCRIPT_MESSAGE_PREFIX = b"Generated PostScript: "
+POSTSCRIPT_MESSAGE_SUFFIX = b"<end of PostScript name>"
 
 
 def _get_generated_pdfs(stdout: bytes) -> List[str]:
@@ -19,6 +21,18 @@ def _get_generated_pdfs(stdout: bytes) -> List[str]:
         PDF_MESSAGE_PREFIX + b"(.*)" + PDF_MESSAGE_SUFFIX, stdout, flags=re.MULTILINE
     )
     return [pdf_name_bytes.decode("utf-8") for pdf_name_bytes in pdfs]
+
+
+def _get_generated_postscript_filenames(stdout: bytes) -> List[str]:
+    postscript_filenames = re.findall(
+        POSTSCRIPT_MESSAGE_PREFIX + b"(.*)" + POSTSCRIPT_MESSAGE_SUFFIX,
+        stdout,
+        flags=re.MULTILINE,
+    )
+    return [
+        postscript_name_bytes.decode("utf-8")
+        for postscript_name_bytes in postscript_filenames
+    ]
 
 
 def _set_sources_dir_permissions(sources_dir: str) -> None:
@@ -46,6 +60,12 @@ def compile_tex(sources_dir: str) -> CompilationResult:
     config.read(COMPILE_CONFIG)
     texlive_path = config["tex"]["texlive_path"]
     texlive_bin_path = config["tex"]["texlive_bin_path"]
+
+    postprocessors = {}
+    if "tex-postprocessors" in config:
+        for name, command in config["tex-postprocessors"].items():
+            postprocessors[name] = command
+
     if "perl" in config and "binary" in config["perl"]:
         perl_binary = config["perl"]["binary"]
     else:
@@ -64,13 +84,81 @@ def compile_tex(sources_dir: str) -> CompilationResult:
         check=False,
     )
 
-    pdfs = None
     success = False
+    postprocesing_error = False
     if result.returncode == 0:
-        pdfs = _get_generated_pdfs(result.stdout)
-        success = True
 
-    return CompilationResult(success, pdfs, result.stdout, result.stderr)
+        success = True
+        pdfs = _get_generated_pdfs(result.stdout)
+        output_files = {
+            "postscript": _get_generated_postscript_filenames(result.stdout)
+        }
+
+        for output_type, filenames in output_files.items():
+            if output_type not in postprocessors or len(filenames) == 0:
+                continue
+
+            command = postprocessors[output_type]
+            try:
+                generated_pdfs = process_files(command, sources_dir, filenames)
+                if len(generated_pdfs) == 0:
+                    logging.warning(
+                        "No PDF files generated with postprocessor for output type %s",
+                        output_type,
+                    )
+                pdfs.extend(generated_pdfs)
+            except PostProcessorException as e:
+                logging.error("Post-processing error: %s", e)
+                postprocesing_error = True
+                success = False
+
+    return CompilationResult(
+        success, pdfs, result.stdout, result.stderr, postprocesing_error
+    )
+
+
+class PostProcessorException(Exception):
+    """
+    Exception raised on the failure of a post-processor.
+    """
+
+
+PdfFileName = str
+
+
+def process_files(
+    command: str, sources_dir: str, filenames: List[str]
+) -> List[PdfFileName]:
+    """
+    Run a post-processing command on a set of files. 'command' should take one parameter (the
+    name of the file to process) and produce a new file with the same basename and the
+    '.pdf' extension.
+    """
+    pdfs: List[PdfFileName] = []
+    for filename in filenames:
+        basename, _ = os.path.splitext(filename)
+
+        logging.debug("Processing file %s with command %s", filename, command)
+        result = subprocess.run(
+            [command, filename],
+            cwd=sources_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            raise PostProcessorException(
+                f"Error processing file {filename} from directory {sources_dir}"
+                + f"with command {command}:"
+                + result.stderr.decode("utf-8")
+            )
+
+        logging.debug("Successfully ran command %s on file %s", command, filename)
+        pdf = basename + ".pdf"
+        pdfs.append(pdf)
+
+    return pdfs
 
 
 def get_compiled_pdfs(compiled_tex_dir: str) -> List[str]:

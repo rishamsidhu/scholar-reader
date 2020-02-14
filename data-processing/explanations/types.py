@@ -28,11 +28,13 @@ class FileContents:
     encoding: str
 
 
-class CompilationResult(NamedTuple):
+@dataclass(frozen=True)
+class CompilationResult:
     success: bool
     compiled_pdfs: Optional[List[str]]
     stdout: bytes
     stderr: bytes
+    postprocessing_error: bool
 
 
 """

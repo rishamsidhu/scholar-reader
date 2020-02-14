@@ -35,6 +35,9 @@ RUN python get-pip.py --force-reinstall
 RUN curl -sL https://deb.nodesource.com/setup_12.x | bash
 RUN apt-get install -y nodejs
 
+# Install Ghostscript for processing Postscript files
+RUN apt-get install -y ghostscript
+
 # Let ImageMagick to read and write PDFs
 RUN sed -i '/pattern="PDF"/s/rights="none"/rights="read | write"/' /etc/ImageMagick-6/policy.xml
 

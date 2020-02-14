@@ -5,21 +5,10 @@ import shutil
 from typing import Dict, Iterator, List, Optional
 
 from explanations import directories
-from explanations.types import (
-    ArxivId,
-    CharacterId,
-    CompilationResult,
-    Equation,
-    EquationId,
-    FileContents,
-    HueIteration,
-    Path,
-    PdfBoundingBox,
-    Symbol,
-    SymbolId,
-    SymbolWithId,
-    TokenWithOrigin,
-)
+from explanations.types import (ArxivId, CharacterId, CompilationResult,
+                                Equation, EquationId, FileContents,
+                                HueIteration, Path, PdfBoundingBox, Symbol,
+                                SymbolId, SymbolWithId, TokenWithOrigin)
 
 Contents = str
 Encoding = str
@@ -236,6 +225,11 @@ def save_compilation_results(
 
     with open(os.path.join(results_dir, "stderr.log"), "wb") as stderr_file:
         stderr_file.write(result.stderr)
+
+    with open(
+        os.path.join(results_dir, "postprocessing_error"), "w"
+    ) as postprocessing_error_file:
+        postprocessing_error_file.write(str(result.postprocessing_error))
 
 
 def load_citation_hue_locations(

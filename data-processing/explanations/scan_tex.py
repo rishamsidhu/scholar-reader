@@ -75,7 +75,9 @@ class ScanStep:
 
 
 class EndOfInput(Exception):
-    pass
+    """
+    Exception raised by TexScanner when the end of the input has been reached.
+    """
 
 
 class TexScanner:
