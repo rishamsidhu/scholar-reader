@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Iterator
 
@@ -50,9 +51,22 @@ class SentenceExtractor(EntityExtractor):
         segmenter = pysbd.Segmenter(language="en", clean=False, char_span=True)
         for i, sentence in enumerate(segmenter.segment(plaintext)):
 
+            # There's a known issue in pySBD (https://github.com/nipunsadvilkar/pySBD/issues/49)
+            # where in some special cases, the character offset counter resets. Detect if it
+            # resets and for now, stop sentence extraction. Keep an eye on releases of pySBD,
+            # as we definitely want to use a fixed version so we don't skip sentences.
+            if i > 0 and sentence.start == 0:
+                logging.warning(  # pylint: disable=logging-not-lazy
+                    "Known issue from pySBD encountered "
+                    + "(https://github.com/nipunsadvilkar/pySBD/issues/49). All upcoming sentences "
+                    + "starting at the %dth will not be extracted.",
+                    i,
+                )
+                return
+
             start = plaintext_to_tex_offset_map[sentence.start]
             end = plaintext_to_tex_offset_map[sentence.end]
-            tex = tex[start:end]
+            sentence_tex = tex[start:end]
             context_tex = tex[start - DEFAULT_CONTEXT_SIZE : end + DEFAULT_CONTEXT_SIZE]
 
             yield Sentence(
@@ -61,6 +75,6 @@ class SentenceExtractor(EntityExtractor):
                 end=end,
                 id_=str(i),
                 tex_path=tex_path,
-                tex=tex,
+                tex=sentence_tex,
                 context_tex=context_tex,
             )

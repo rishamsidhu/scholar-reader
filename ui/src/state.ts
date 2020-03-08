@@ -7,6 +7,7 @@ import {
   Citation,
   MathMl,
   Paper,
+  Sentence,
   Symbol,
   SymbolMatches,
   UserLibrary
@@ -26,6 +27,8 @@ export interface State {
   setSymbolMatches(matchSet: SymbolMatches): void;
   mathMl: Readonly<MathMl[]>;
   setMathMl(mathMl: MathMl[]): void;
+  sentences: Readonly<Sentence[]>;
+  setSentences(sentences: Sentence[]): void;
   papers: Readonly<Papers>;
   setPapers(papers: Papers): void;
 
@@ -109,6 +112,8 @@ const defaultState: State = {
   setSymbolMatches: () => {},
   mathMl: [],
   setMathMl: () => {},
+  sentences: [],
+  setSentences: () => {},
   papers: {},
   setPapers: () => {},
   pages: {},
